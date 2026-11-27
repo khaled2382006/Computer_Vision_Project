@@ -7,6 +7,7 @@ from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
+import ctypes
 
 # ===== الموديل =====
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hand_landmarker.task")
@@ -47,6 +48,7 @@ except AttributeError:
 smooth_vol = volume.GetMasterVolumeLevelScalar()
 
 # ===== الدوال =====
+
 def calculate_distance(a, b):
     return math.hypot(a.x - b.x, a.y - b.y)
 
@@ -101,6 +103,15 @@ def recognize_gesture_v2(lm):
     if total == 2: return "TWO FINGERS"
     if total == 3: return "THREE FINGERS"
     return "UNKNOWN"
+
+def is_youtube_active():
+    user32 = ctypes.windll.user32
+    hwnd = user32.GetForegroundWindow()
+    length = user32.GetWindowTextLengthW(hwnd)
+    buf = ctypes.create_unicode_buffer(length + 1)
+    user32.GetWindowTextW(hwnd, buf, length + 1)
+    return "youtube" in buf.value.lower()
+
 # ===== الأوامر =====
 ACTIONS = {
     "OPEN PALM":     ("playpause",  1.5),
@@ -171,17 +182,30 @@ while cap.isOpened():
 
     # تنفيذ الأوامر (بس لو مفتوح)
     history = (history + [gesture])[-STABLE_FRAMES:]
+       # تنفيذ الأوامر (بس لو مفتوح) #
+    history = (history + [gesture])[-STABLE_FRAMES:]
     stable = len(history) == STABLE_FRAMES and len(set(history)) == 1
 
     if not locked and stable and gesture in ACTIONS:
         key, cooldown = ACTIONS[gesture]
         if now - last_fire.get(gesture, 0) > cooldown:
-            pyautogui.press(key)
+            if gesture == "TWO FINGERS":
+                if is_youtube_active():
+                    pyautogui.hotkey("shift", "n")
+                else:
+                    pyautogui.press("nexttrack")
+            elif gesture == "THREE FINGERS":
+                if is_youtube_active():
+                    pyautogui.hotkey("shift", "p")
+                else:
+                    pyautogui.press("prevtrack")
+            else:
+                pyautogui.press(key)
+
             last_fire[gesture] = now
             print("نفّذت:", gesture, "->", key)
             last_action = f"{gesture} -> {key}"
             last_action_time = now
-
     # التحكم المستمر في الصوت
     if not locked and gesture == "VOLUME MODE" and hand is not None:
         ratio = calculate_distance(hand[4], hand[8]) / calculate_distance(hand[5], hand[17])
