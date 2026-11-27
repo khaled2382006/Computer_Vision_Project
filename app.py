@@ -76,6 +76,10 @@ GESTURE_GUIDE = [
     ("🔊", "Thumb + Index", "Adjust volume smoothly by moving thumb and index apart or together."),
 ]
 
+VK_MEDIA_PLAY_PAUSE = 0xB3
+KEYEVENTF_EXTENDEDKEY = 0x0001
+KEYEVENTF_KEYUP = 0x0002
+
 
 # ===== Resource Helpers =====
 def create_detector():
@@ -179,6 +183,15 @@ def is_youtube_active():
     buf = ctypes.create_unicode_buffer(length + 1)
     user32.GetWindowTextW(hwnd, buf, length + 1)
     return "youtube" in buf.value.lower()
+
+
+def trigger_play_pause():
+    user32 = ctypes.windll.user32
+    user32.keybd_event(VK_MEDIA_PLAY_PAUSE, 0, KEYEVENTF_EXTENDEDKEY, 0)
+    time.sleep(0.05)
+    user32.keybd_event(VK_MEDIA_PLAY_PAUSE, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
+    pyautogui.press("playpause")
+    pyautogui.press("k")
 
 
 # ===== Session State Initialization =====
@@ -357,6 +370,8 @@ if st.session_state.running:
                                 pyautogui.hotkey("shift", "p")
                             else:
                                 pyautogui.press("prevtrack")
+                        elif gesture == "OPEN PALM":
+                            trigger_play_pause()
                         else:
                             pyautogui.press(key)
 
