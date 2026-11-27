@@ -57,22 +57,24 @@ HAND_CONNECTIONS = [
 ]
 
 ACTIONS = {
-    "OPEN PALM": ("playpause", 1.5),
+    "OPEN PALM": ("playpause", 0.5),
     "THUMBS UP": ("volumeup", 0.3),
     "THUMBS DOWN": ("volumedown", 0.3),
-    "OK SIGN": ("volumemute", 1.5),
-    "TWO FINGERS": ("nexttrack", 1.5),
-    "THREE FINGERS": ("prevtrack", 1.5),
+    "OK SIGN": ("volumemute", 0.5),
+    "TWO FINGERS": ("nexttrack", 0.5),
+    "THREE FINGERS": ("prevtrack", 0.5),
 }
+
+ONE_SHOT_GESTURES = {"OPEN PALM", "OK SIGN", "TWO FINGERS", "THREE FINGERS"}
 
 GESTURE_GUIDE = [
     ("☝️", "One Finger (Hold)", "Lock or unlock hand control so accidental moves do not trigger actions."),
-    ("✋", "Open Palm", "Play or pause the video or audio."),
+    ("✋", "Open Palm", "Play or pause once; lower or change hand gesture to trigger again."),
     ("👍", "Thumbs Up", "Turn volume up."),
     ("👎", "Thumbs Down", "Turn volume down."),
-    ("👌", "OK Sign", "Mute or unmute sound."),
-    ("✌️", "Two Fingers", "Go to the next video or track."),
-    ("3️⃣", "Three Fingers", "Go to the previous video or track."),
+    ("👌", "OK Sign", "Mute or unmute once per gesture."),
+    ("✌️", "Two Fingers", "Next video/track once; lower or change gesture to trigger again."),
+    ("3️⃣", "Three Fingers", "Previous video/track once; lower or change gesture to trigger again."),
     ("🔊", "Thumb + Index", "Adjust volume smoothly by moving thumb and index apart or together."),
 ]
 
@@ -215,6 +217,8 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = time.time()
 if "last_ts" not in st.session_state:
     st.session_state.last_ts = 0
+if "last_triggered_gesture" not in st.session_state:
+    st.session_state.last_triggered_gesture = None
 
 volume = load_volume_controller()
 if "smooth_vol" not in st.session_state:
@@ -232,6 +236,8 @@ with st.sidebar:
         st.session_state.running = True
         st.session_state.start_time = time.time()
         st.session_state.last_ts = 0
+        st.session_state.history = []
+        st.session_state.last_triggered_gesture = None
     if col_stop.button("Stop", use_container_width=True):
         st.session_state.running = False
 
@@ -356,9 +362,17 @@ if st.session_state.running:
                     and len(set(st.session_state.history)) == 1
                 )
 
+                # نفك قفل الإشارة فقط لما تثبت إشارة مختلفة عن آخر إشارة اتنفذت
+                if stable and gesture != st.session_state.last_triggered_gesture:
+                    st.session_state.last_triggered_gesture = None
+
                 if not st.session_state.locked and stable and gesture in ACTIONS:
                     key, cooldown = ACTIONS[gesture]
-                    if now - st.session_state.last_fire.get(gesture, 0) > cooldown:
+                    already_latched = (
+                        gesture in ONE_SHOT_GESTURES
+                        and st.session_state.last_triggered_gesture == gesture
+                    )
+                    if not already_latched and (now - st.session_state.last_fire.get(gesture, 0) > cooldown):
                         yt_active = is_youtube_active()
                         if gesture == "TWO FINGERS":
                             if yt_active:
@@ -374,6 +388,9 @@ if st.session_state.running:
                             trigger_play_pause()
                         else:
                             pyautogui.press(key)
+
+                        if gesture in ONE_SHOT_GESTURES:
+                            st.session_state.last_triggered_gesture = gesture
 
                         st.session_state.last_fire[gesture] = now
                         st.session_state.last_action = f"{gesture} -> {key}"
